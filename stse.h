@@ -5,7 +5,7 @@
  *  - STSE_DEF: gets put in front of every function definition eg. static inline, default: ``
  *  - STSE_ASSERT: which function to use for assert calls, default: `assert`
  *  - STSE_TMP_BUF_CAP: capacity (in bytes) for the temporary buffer, default: 4mb
- *  - STSE_BLOCK_SIZE: default size (in bytes) for memory blocks used in memory pools, default: 4kb
+ *  - STSE_BLOCK_SIZE: default size (in bytes) for memory blocks used in memory pools, default: 256kb
  *  - STSE_DA_INITIAL_CAPACITY: initial capacity (in elements) for dynamic arrays, default: 256
  *  - STSE_OMIT_NS: omits `stse` in front of functions, default: not set
  *  - STSE_IMPLEMENTATION: implements stse functions, should only be set in one sourcefile, default: not set
@@ -202,6 +202,7 @@ typedef struct {
 
 STSEDEF int stse_sb_appendf(Stse_String_Builder *sb,
 		STSE_FORMAT_STRING const char *fmt, ...) STSE_PRINTF_FORMAT(2, 3);
+
 #define stse_sb_append(sb, c) stse_da_push((sb), (c))
 #define stse_sb_insert(sb, i, c) stse_da_insert((sb), (i), (c))
 #define stse_sb_append_buf(sb, buf, n) stse_da_append_all((sb), (buf), (n))
@@ -220,7 +221,7 @@ STSEDEF int stse_sb_appendf(Stse_String_Builder *sb,
 //////////////////
 
 #ifndef STSE_BLOCK_SIZE
-#define STSE_BLOCK_SIZE (4*1024)
+#define STSE_BLOCK_SIZE (256*1024)
 #endif /* STSE_BLOCK_SIZE */
 
 typedef struct _Stse_Pool_Block _Stse_Pool_Block;
