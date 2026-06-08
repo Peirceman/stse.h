@@ -312,9 +312,14 @@ STSEDEF void *stse_pool_calloc(Stse_Pool *pool, size_t bytes) {
 STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, size_t new_size) {
 	size_t word_size = sizeof(uintptr_t);
 	new_size = (new_size + word_size - 1)/word_size*word_size;
-	void *result = stse_pool_alloc(pool, new_size);
-	memcpy(result, data, old_size);
-	return result;
+	if (new_size > old_size) {
+		void *result = stse_pool_alloc(pool, new_size);
+		if (!result) return NULL;
+		memcpy(result, data, old_size);
+		return result;
+	}
+
+	return data;
 }
 
 STSEDEF void stse_pool_free(Stse_Pool *pool) {
@@ -346,4 +351,9 @@ STSEDEF void stse_pool_free(Stse_Pool *pool) {
 #define tmp_rewind stse_tmp_rewind
 #define tmp_alloc stse_tmp_alloc
 #define tmp_sprintf stse_tmp_sprintf
+#define Pool Stse_Pool
+#define pool_alloc stse_pool_alloc
+#define pool_calloc stse_pool_calloc
+#define pool_realloc stse_pool_realloc
+#define pool_free stse_pool_free
 #endif /* STSE_OMIT_NS */

@@ -6,6 +6,7 @@ int main(void) {
 	Stse_Pool pool = {0};
 	int *data = stse_pool_alloc(&pool, 10*sizeof(int));
 	char *buf = stse_pool_calloc(&pool, 4*1024*1024);
+	printf("Starting:\n");
 
 	for (int i = 0; i < 10; i++) {
 		data[i] = i*10;
@@ -14,7 +15,7 @@ int main(void) {
 	data[0] = 6;
 	data[9] = 9;
 
-	stse_pool_realloc(&pool, data, 10*sizeof(int), 12*sizeof(int));
+	data = stse_pool_realloc(&pool, data, 10*sizeof(int), 12*sizeof(int));
 	data[10] = 100;
 	data[11] = 110;
 	for (int i = 0; i < 12; i++) {
