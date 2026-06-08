@@ -48,6 +48,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -173,6 +174,32 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 
 #define stse_da_free(da) STSE_FREE((da)->items)
 
+//////////////////
+// memory pools //
+//////////////////
+
+#ifndef STSE_BLOCK_SIZE
+#define STSE_BLOCK_SIZE (4*1024)
+#endif /* STSE_BLOCK_SIZE */
+
+typedef struct _Stse_Pool_Block _Stse_Pool_Block;
+
+struct _Stse_Pool_Block {
+	_Stse_Pool_Block *next;
+	size_t empty_offset;
+	size_t empty_space;
+	unsigned char data[];
+};
+
+typedef struct {
+	_Stse_Pool_Block *blocks;
+} Stse_Pool;
+
+STSEDEF void *stse_pool_alloc(Stse_Pool *pool, size_t bytes);
+STSEDEF void *stse_pool_calloc(Stse_Pool *pool, size_t bytes);
+STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, size_t new_size);
+STSEDEF void stse_pool_free(Stse_Pool *pool);
+
 #endif /* STSE_H_ */
 
 #ifdef STSE_IMPLEMENTATION
@@ -193,6 +220,8 @@ STSEDEF void stse_tmp_rewind(size_t save_state) {
 }
 
 STSEDEF void *stse_tmp_alloc(size_t bytes) {
+	size_t word_size = sizeof(uintptr_t);
+	bytes = (bytes+word_size-1)/word_size*word_size;
 	if (stse_tmp_buffer_size + bytes > STSE_TMP_BUF_CAP) return NULL;
 	void *result = &stse_tmp_buffer[stse_tmp_buffer_size];
 	stse_tmp_buffer_size += bytes;
@@ -239,6 +268,64 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap) {
 	va_end(args);
 
 	return result;
+}
+
+STSEDEF void *stse_pool_alloc(Stse_Pool *pool, size_t bytes) {
+	size_t word_size = sizeof(uintptr_t);
+	bytes = (bytes + word_size - 1)/word_size*word_size;
+
+	if (pool->blocks != NULL) {
+		_Stse_Pool_Block *block = pool->blocks;
+		if (block->empty_space >= bytes) {
+			void *result = block->data + block->empty_offset;
+			block->empty_offset += bytes;
+			block->empty_space -= bytes;
+			return result;
+		}
+	}
+
+	size_t n = STSE_BLOCK_SIZE;
+	while (bytes + sizeof(_Stse_Pool_Block) > n) n *= 2;
+
+	_Stse_Pool_Block *block = STSE_REALLOC(NULL, n);
+	if (!block) return NULL;
+
+	*block = (_Stse_Pool_Block) {
+		.next = pool->blocks,
+		.empty_offset = bytes,
+		.empty_space = n - sizeof(_Stse_Pool_Block) - bytes,
+	};
+
+	pool->blocks = block;
+
+	return block->data;
+}
+
+STSEDEF void *stse_pool_calloc(Stse_Pool *pool, size_t bytes) {
+	size_t word_size = sizeof(uintptr_t);
+	bytes = (bytes + word_size - 1)/word_size*word_size;
+	void *result = stse_pool_alloc(pool, bytes);
+	memset(result, 0, bytes);
+	return result;
+}
+
+STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, size_t new_size) {
+	size_t word_size = sizeof(uintptr_t);
+	new_size = (new_size + word_size - 1)/word_size*word_size;
+	void *result = stse_pool_alloc(pool, new_size);
+	memcpy(result, data, old_size);
+	return result;
+}
+
+STSEDEF void stse_pool_free(Stse_Pool *pool) {
+	_Stse_Pool_Block *block = pool->blocks;
+	while (block) {
+		_Stse_Pool_Block *next = block->next;
+		STSE_FREE(block);
+		block = next;
+	}
+
+	pool->blocks = NULL;
 }
 
 #endif /* STSE_IMPLEMENTATION */
