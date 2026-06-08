@@ -12,6 +12,8 @@
  *  - STSE_NO_ASSERT_ALLOCATION: when unset, assert all memory allocations are valid (not NULL).
  *        If set, return NULL in functions that deal with allocations (other functions in stse may
  *        still assert allocations are succesfull, even when this is not set), default: unset
+ *  - STSE_TMP_POOL: when set, use the defined `Stse_Pool` for the tmp buffer instead of a static
+ *        array. if this value is set, STSE_TMP_BUF_CAP has no effect. default: unset
  */
 #ifndef STSE_H_
 #define STSE_H_
@@ -77,9 +79,11 @@
 #endif /* STSE_TMP_BUF_CAP */
 
 STSEDEF void stse_tmp_reset(void);
-STSEDEF size_t stse_tmp_save(void);
-STSEDEF void stse_tmp_rewind(size_t save_state);
+STSEDEF uintptr_t stse_tmp_save(void);
+STSEDEF void stse_tmp_rewind(uintptr_t save_state);
 STSEDEF void *stse_tmp_alloc(size_t bytes);
+STSEDEF void *stse_tmp_calloc(size_t bytes);
+STSEDEF void *stse_tmp_realloc(void *data, size_t old_size, size_t new_size);
 STSEDEF char *stse_tmp_strdup(const char *src);
 STSEDEF char *stse_tmp_strndup(const char *src, size_t n);
 STSEDEF char *stse_tmp_sprintf(STSE_FORMAT_STRING const char *format, ...) STSE_PRINTF_FORMAT(1, 2);
@@ -237,6 +241,8 @@ typedef struct {
 	_Stse_Pool_Block *blocks;
 } Stse_Pool;
 
+STSEDEF uintptr_t stse_pool_save(Stse_Pool pool);
+STSEDEF void stse_pool_rewind(Stse_Pool *pool, uintptr_t save_state);
 STSEDEF void *stse_pool_alloc(Stse_Pool *pool, size_t bytes);
 STSEDEF void *stse_pool_calloc(Stse_Pool *pool, size_t bytes);
 STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, size_t new_size);
@@ -293,6 +299,33 @@ STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix);
 
 #ifdef STSE_IMPLEMENTATION
 
+#ifdef STSE_TMP_POOL
+static Stse_Pool stse_tmp_pool = {0};
+
+STSEDEF void stse_tmp_reset(void) {
+	stse_pool_free(&stse_tmp_pool);
+}
+
+STSEDEF uintptr_t stse_tmp_save(void) {
+	return stse_pool_save(stse_tmp_pool);
+}
+
+STSEDEF void stse_tmp_rewind(uintptr_t save_state) {
+	return stse_pool_rewind(&stse_tmp_pool, save_state);
+}
+
+STSEDEF void *stse_tmp_alloc(size_t bytes) {
+	return stse_pool_alloc(&stse_tmp_pool, bytes);
+}
+
+STSEDEF void *stse_tmp_calloc(size_t bytes) {
+	return stse_pool_calloc(&stse_tmp_pool, bytes);
+}
+
+STSEDEF void *stse_tmp_realloc(void *data, size_t old_size, size_t new_size) {
+	return stse_pool_realloc(&stse_tmp_pool, bytes);
+}
+#else
 static char stse_tmp_buffer[STSE_TMP_BUF_CAP] = {0};
 static size_t stse_tmp_buffer_size = 0;
 
@@ -300,12 +333,12 @@ STSEDEF void stse_tmp_reset(void) {
 	stse_tmp_buffer_size = 0;
 }
 
-STSEDEF size_t stse_tmp_save(void) {
-	return stse_tmp_buffer_size;
+STSEDEF uintptr_t stse_tmp_save(void) {
+	return (uintptr_t) stse_tmp_buffer_size;
 }
 
-STSEDEF void stse_tmp_rewind(size_t save_state) {
-	stse_tmp_buffer_size = save_state;
+STSEDEF void stse_tmp_rewind(uintptr_t save_state) {
+	stse_tmp_buffer_size = (size_t) save_state;
 }
 
 STSEDEF void *stse_tmp_alloc(size_t bytes) {
@@ -322,12 +355,41 @@ STSEDEF void *stse_tmp_alloc(size_t bytes) {
 	return result;
 }
 
+STSEDEF void *stse_tmp_calloc(size_t bytes) {
+	size_t word_size = sizeof(uintptr_t);
+	bytes = (bytes+word_size-1)/word_size*word_size;
+	void *result = stse_tmp_alloc(bytes);
+
+#ifdef STSE_NO_ASSERT_ALLOCATION
+	if (!result) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
+
+	memset(result, 0, bytes);
+	return result;
+}
+
+STSEDEF void *stse_tmp_realloc(void *data, size_t old_size, size_t new_size) {
+	size_t word_size = sizeof(uintptr_t);
+	new_size = (new_size + word_size - 1)/word_size*word_size;
+	if (new_size <= old_size) return data;
+
+	void *result = stse_tmp_alloc(new_size);
+#ifdef STSE_NO_ASSERT_ALLOCATION
+	if (!result) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
+	memcpy(result, data, old_size);
+	return result;
+}
+#endif /* STSE_TMP_POOL */
+
 STSEDEF char *stse_tmp_strdup(const char *src) {
 	size_t n = strlen(src);
 	char *copy = stse_tmp_alloc(n + 1);
+
 #ifdef STSE_NO_ASSERT_ALLOCATION
 	if (!copy) return NULL;
 #endif /* STSE_ASSERT_ALLOCATION */
+
 	memcpy(copy, src, n);
 	copy[n] = '\0';
 	return copy;
@@ -386,6 +448,39 @@ STSEDEF int stse_sb_appendf(Stse_String_Builder *sb, const char *fmt, ...) {
 	return n;
 }
 
+STSEDEF uintptr_t stse_pool_save(Stse_Pool pool) {
+	if (!pool.blocks) return 0;
+
+	return (uintptr_t) (pool.blocks->data + pool.blocks->empty_offset);
+}
+
+STSEDEF void stse_pool_rewind(Stse_Pool *pool, uintptr_t save_state) {
+	if (save_state == 0) {
+		stse_pool_free(pool);
+		return;
+	}
+
+	STSE_ASSERT(pool->blocks);
+	_Stse_Pool_Block *block = pool->blocks;
+	while (block) {
+		uintptr_t min = (uintptr_t) block->data;
+		uintptr_t max = (uintptr_t) (block->data + block->empty_offset + block->empty_space);
+
+		// not sure if < max would also be okay but dont worry
+		if (min <= save_state && save_state <= max) {
+			block->empty_offset = save_state - min;
+			block->empty_space = max - save_state;
+			break;
+		}
+
+		_Stse_Pool_Block *next = block->next;
+		STSE_FREE(block);
+		block = next;
+	}
+
+	pool->blocks = block;
+}
+
 STSEDEF void *stse_pool_alloc(Stse_Pool *pool, size_t bytes) {
 	size_t word_size = sizeof(uintptr_t);
 	bytes = (bytes + word_size - 1)/word_size*word_size;
@@ -430,16 +525,14 @@ STSEDEF void *stse_pool_calloc(Stse_Pool *pool, size_t bytes) {
 STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, size_t new_size) {
 	size_t word_size = sizeof(uintptr_t);
 	new_size = (new_size + word_size - 1)/word_size*word_size;
-	if (new_size > old_size) {
-		void *result = stse_pool_alloc(pool, new_size);
-#ifdef STSE_NO_ASSERT_ALLOCATION
-		if (!result) return NULL;
-#endif /* STSE_ASSERT_ALLOCATION */
-		memcpy(result, data, old_size);
-		return result;
-	}
+	if (new_size <= old_size) return data;
 
-	return data;
+	void *result = stse_pool_alloc(pool, new_size);
+#ifdef STSE_NO_ASSERT_ALLOCATION
+	if (!result) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
+	memcpy(result, data, old_size);
+	return result;
 }
 
 STSEDEF void stse_pool_free(Stse_Pool *pool) {
@@ -748,8 +841,15 @@ STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix) {
 #define tmp_save stse_tmp_save
 #define tmp_rewind stse_tmp_rewind
 #define tmp_alloc stse_tmp_alloc
+#define tmp_calloc stse_tmp_calloc
+#define tmp_realloc stse_tmp_realloc
+#define tmp_strdup stse_tmp_strdup
+#define tmp_strndup stse_tmp_strndup
 #define tmp_sprintf stse_tmp_sprintf
+#define tmp_vsprintf stse_tmp_vsprintf
 #define Pool Stse_Pool
+#define pool_save stse_pool_save
+#define pool_rewind stse_pool_rewind
 #define pool_alloc stse_pool_alloc
 #define pool_calloc stse_pool_calloc
 #define pool_realloc stse_pool_realloc
