@@ -1,6 +1,9 @@
-
 #ifndef STSE_H_
 #define STSE_H_
+
+#ifndef STSEDEF
+#define STSEDEF
+#endif /* STSEDEF */
 
 #ifndef STSE_ASSERT
 #include <assert.h>
@@ -17,11 +20,54 @@
 #define STSE_REALLOC realloc
 #endif /* STSE_REALLOC */
 
+
+// https://github.com/tsoding/nob.h
+#if defined(__GNUC__) || defined(__clang__)
+//   https://gcc.gnu.org/onlinedocs/gcc-4.7.2/gcc/Function-Attributes.html
+#    define STSE_FORMAT_STRING
+#    ifdef __MINGW_PRINTF_FORMAT
+#        define STSE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK) __attribute__ ((format (__MINGW_PRINTF_FORMAT, STRING_INDEX, FIRST_TO_CHECK)))
+#    else
+#        define STSE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK) __attribute__ ((format (printf, STRING_INDEX, FIRST_TO_CHECK)))
+#    endif /* __MINGW_PRINTF_FORMAT */
+#else
+//   https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2010/ms235402(v=vs.100)
+#    define STSE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
+#    if _MSC_VER >= 1400
+#        include <sal.h>
+#        if _MSC_VER > 1400
+#            define STSE_FORMAT_STRING _Printf_format_string_
+#        else
+#            define STSE_FORMAT_STRING __format_string
+#        endif
+#    else
+#        define STSE_FORMAT_STRING
+#    endif
+#endif
+
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #define STSE_SWAP(T, a, b) do { T temp = a; a = b; b = t; } while (0)
+
+//////////////////////
+// temporary buffer //
+//////////////////////
+#ifndef STSE_TMP_BUF_CAP
+#define STSE_TMP_BUF_CAP (4*1024*1024)
+#endif /* STSE_TMP_BUF_CAP */
+
+STSEDEF void stse_tmp_reset(void);
+STSEDEF size_t stse_tmp_save(void);
+STSEDEF void stse_tmp_rewind(size_t save_state);
+STSEDEF void *stse_tmp_alloc(size_t bytes);
+STSEDEF char *stse_tmp_strdup(const char *src);
+STSEDEF char *stse_tmp_strndup(const char *src, size_t n);
+STSEDEF char *stse_tmp_sprintf(STSE_FORMAT_STRING const char *format, ...) STSE_PRINTF_FORMAT(1, 2);
+STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 
 ////////////////////
 // Dynamic Arrays //
@@ -75,15 +121,19 @@
 
 #define stse_da_pop(da) ((da)->items[(STSE_ASSERT((da)->len > 0), --(da)->len)])
 
-#define stse_da_insert(da, index, item)                \
-	do {                                               \
-		size_t i = (index);                            \
-		stse_da_reserve((da), (da)->len + 1);          \
-		memmove(&(da)->items[i+1],                     \
-				&(da)->items[i],                       \
-				((da)->len - i)*sizeof(*(da)->items)); \
-		(da)->items[i] = (item);                       \
-		(da)->len++;                                   \
+#define stse_da_insert(da, index, item)                    \
+	do {                                                   \
+		size_t i = (index);                                \
+		STSE_ASSERT(i >= 0);                               \
+		if (i >= (da)->len) stse_da_push((da), (item));    \
+		else {                                             \
+			stse_da_reserve((da), (da)->len + 1);          \
+			memmove(&(da)->items[i+1],                     \
+					&(da)->items[i],                       \
+					((da)->len - i)*sizeof(*(da)->items)); \
+			(da)->items[i] = (item);                       \
+			(da)->len++;                                   \
+		}                                                  \
 	} while (0)
 
 #define stse_da_remove(da, index)                            \
@@ -110,16 +160,88 @@
 		.cap = 0,                                                   \
 	})
 
-#define stse_da_append_all(da, new_items, count)                                    \
-	do {                                                                            \
-		stse_da_reserve((da), (da)->len + (count));                                 \
-		memcpy((da)->items + (da)->len, (new_items), count * sizeof(*(da)->items)); \
-		(da)->len += (count);                                                       \
+#define stse_da_append_all(da, new_items, count)        \
+	do {                                                \
+		if ((count) > 0) {                              \
+			stse_da_reserve((da), (da)->len + (count)); \
+			memcpy((da)->items + (da)->len,             \
+					(new_items),                        \
+					(count) * sizeof(*(da)->items));    \
+			(da)->len += (count);                       \
+		}                                               \
 	} while (0)
 
 #define stse_da_free(da) STSE_FREE((da)->items)
 
 #endif /* STSE_H_ */
+
+#ifdef STSE_IMPLEMENTATION
+
+static char stse_tmp_buffer[STSE_TMP_BUF_CAP] = {0};
+static size_t stse_tmp_buffer_size = 0;
+
+STSEDEF void stse_tmp_reset(void) {
+	stse_tmp_buffer_size = 0;
+}
+
+STSEDEF size_t stse_tmp_save(void) {
+	return stse_tmp_buffer_size;
+}
+
+STSEDEF void stse_tmp_rewind(size_t save_state) {
+	stse_tmp_buffer_size = save_state;
+}
+
+STSEDEF void *stse_tmp_alloc(size_t bytes) {
+	if (stse_tmp_buffer_size + bytes > STSE_TMP_BUF_CAP) return NULL;
+	void *result = &stse_tmp_buffer[stse_tmp_buffer_size];
+	stse_tmp_buffer_size += bytes;
+	return result;
+}
+
+STSEDEF char *stse_tmp_strdup(const char *src) {
+	size_t n = strlen(src);
+	char *copy = stse_tmp_alloc(n + 1);
+	if (!copy) return NULL;
+	memcpy(copy, src, n);
+	copy[n] = '\0';
+	return copy;
+}
+
+STSEDEF char *stse_tmp_strndup(const char *src, size_t n) {
+	char *copy = stse_tmp_alloc(n + 1);
+	if (!copy) return NULL;
+	memcpy(copy, src, n);
+	copy[n] = '\0';
+	return copy;
+}
+
+STSEDEF char *stse_tmp_sprintf(const char *format, ...) {
+	va_list ap;
+	va_start(ap, format);
+	char *result = stse_tmp_vsprintf(format, ap);
+	va_end(ap);
+	return result;
+}
+
+STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap) {
+	va_list args;
+	va_copy(args, ap);
+	int n = vsnprintf(NULL, 0, format, args);
+	va_end(args);
+
+	STSE_ASSERT(n >= 0);
+
+	char *result = stse_tmp_alloc(n+1);
+	if (!result) return NULL;
+	va_copy(args, ap);
+	vsnprintf(result, n+1, format, args);
+	va_end(args);
+
+	return result;
+}
+
+#endif /* STSE_IMPLEMENTATION */
 
 #ifdef STSE_OMIT_NS
 #define SWAP STSE_SWAP
@@ -132,4 +254,9 @@
 #define da_slice stse_da_slice
 #define da_append_all stse_da_append_all
 #define da_free stse_da_free
+#define tmp_reset stse_tmp_reset
+#define tmp_save stse_tmp_save
+#define tmp_rewind stse_tmp_rewind
+#define tmp_alloc stse_tmp_alloc
+#define tmp_sprintf stse_tmp_sprintf
 #endif /* STSE_OMIT_NS */
