@@ -1,19 +1,43 @@
-/* library of stuf that should exist in c
+/* The MIT License (MIT)
+ *
+ * Copyright © 2026 Peirceman
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the “Software”), to deal in
+ * the Software without restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+ * Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * library of stuf that should exist in c
  * macros to edit behaviour
- *  - STSE_REALLOC: which function to use for realloc calls, default: `realloc`
- *  - STSE_FREE: which function to use for free calls, default: `free`
- *  - STSE_DEF: gets put in front of every function definition eg. static inline, default: ``
- *  - STSE_ASSERT: which function to use for assert calls, default: `assert`
- *  - STSE_TMP_BUF_CAP: capacity (in bytes) for the temporary buffer, default: 4mb
- *  - STSE_BLOCK_SIZE: default size (in bytes) for memory blocks used in memory pools, default: 256kb
- *  - STSE_DA_INITIAL_CAPACITY: initial capacity (in elements) for dynamic arrays, default: 256
- *  - STSE_OMIT_NS: omits `stse` in front of functions, default: not set
- *  - STSE_IMPLEMENTATION: implements stse functions, should only be set in one sourcefile, default: not set
- *  - STSE_NO_ASSERT_ALLOCATION: when unset, assert all memory allocations are valid (not NULL).
- *        If set, return NULL in functions that deal with allocations (other functions in stse may
- *        still assert allocations are succesfull, even when this is not set), default: unset
- *  - STSE_TMP_POOL: when set, use the defined `Stse_Pool` for the tmp buffer instead of a static
- *        array. if this value is set, STSE_TMP_BUF_CAP has no effect. default: unset
+ *     - `STSEDEF`: gets put in front of every function definition eg. static inline, default: ``
+ *     - `STSE_REALLOC`: which function to use for realloc calls, default: `realloc`
+ *     - `STSE_FREE`: which function to use for free calls, default: `free`
+ *     - `STSE_ASSERT`: which function to use for assert calls, default: `assert`
+ *     - `STSE_TMP_BUF_CAP`: capacity (in bytes) for the temporary buffer, default: 4mb
+ *     - `STSE_BLOCK_SIZE`: default size (in bytes) for memory blocks used in memory pools, default: 256kb
+ *     - `STSE_DA_INITIAL_CAPACITY`: initial capacity (in elements) for dynamic arrays, default: 256
+ *     - `STSE_OMIT_NS`: omits `stse` in front of functions, default: not set
+ *     - `STSE_IMPLEMENTATION`: this library in in the stile of stb header-only libraries. The header file
+ *           both defines and implements all functions. If you define this macro, the implementations
+ *           are included in the current source file. Usually this should only be done in one file, unless
+ *           you know what you're doing (eg. when `STSEDEF` is set to `static`), default: not set
+ *     - `STSE_NO_ASSERT_ALLOCATION`: when unset, assert all memory allocations are valid (not NULL).
+ *           If set, return NULL in functions that deal with allocations (other functions in stse may
+ *           still assert allocations are succesfull, even when this is set), default: unset
+ *     - `STSE_TMP_POOL`: when set, use the defined `Stse_Pool` for the tmp buffer instead of a static
+ *           array. If this value is set, `STSE_TMP_BUF_CAP` has no effect. default: unset
  */
 #ifndef STSE_H_
 #define STSE_H_
