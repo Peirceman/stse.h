@@ -1,3 +1,18 @@
+/* library of stuf that should exist in c
+ * macros to edit behaviour
+ *  - STSE_REALLOC: which function to use for realloc calls, default: `realloc`
+ *  - STSE_FREE: which function to use for free calls, default: `free`
+ *  - STSE_DEF: gets put in front of every function definition eg. static inline, default: ``
+ *  - STSE_ASSERT: which function to use for assert calls, default: `assert`
+ *  - STSE_TMP_BUF_CAP: capacity (in bytes) for the temporary buffer, default: 4mb
+ *  - STSE_BLOCK_SIZE: default size (in bytes) for memory blocks used in memory pools, default: 4kb
+ *  - STSE_DA_INITIAL_CAPACITY: initial capacity (in elements) for dynamic arrays, default: 256
+ *  - STSE_OMIT_NS: omits `stse` in front of functions, default: not set
+ *  - STSE_IMPLEMENTATION: implements stse functions, should only be set in one sourcefile, default: not set
+ *  - STSE_NO_ASSERT_ALLOCATION: when unset, assert all memory allocations are valid (not NULL).
+ *        If set, return NULL in functions that deal with allocations (other functions in stse may
+ *        still assert allocations are succesfull, even when this is not set), default: unset
+ */
 #ifndef STSE_H_
 #define STSE_H_
 
@@ -19,7 +34,6 @@
 #include <stdlib.h>
 #define STSE_REALLOC realloc
 #endif /* STSE_REALLOC */
-
 
 // https://github.com/tsoding/nob.h
 #if defined(__GNUC__) || defined(__clang__)
@@ -51,6 +65,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #define STSE_SWAP(T, a, b) do { T temp = a; a = b; b = t; } while (0)
 
@@ -200,6 +215,53 @@ STSEDEF void *stse_pool_calloc(Stse_Pool *pool, size_t bytes);
 STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, size_t new_size);
 STSEDEF void stse_pool_free(Stse_Pool *pool);
 
+/////////////////
+// string view //
+/////////////////
+
+#define STSE_SV_FMT "%.*s"
+#define STSE_SV_ARG(sv) (int) (sv).len, (sv).data
+
+typedef struct {
+	const char *data;
+	size_t len;
+} Stse_String_View;
+
+STSEDEF Stse_String_View stse_sv_from_cstr(const char *cstr);
+STSEDEF const char *stse_sv_to_tmp_cstr(Stse_String_View sv);
+
+STSEDEF Stse_String_View stse_sv_trim_left(Stse_String_View sv);
+STSEDEF Stse_String_View stse_sv_trim_left_delim(Stse_String_View sv, char delimiter);
+STSEDEF Stse_String_View stse_sv_trim_left_delim_cstr(Stse_String_View sv, const char *delimiters);
+STSEDEF Stse_String_View stse_sv_trim_left_delim_sv(Stse_String_View sv, Stse_String_View delimiters);
+STSEDEF Stse_String_View stse_sv_trim_left_pred(Stse_String_View sv, int (*predicate)(int));
+
+STSEDEF Stse_String_View stse_sv_trim_right(Stse_String_View sv);
+STSEDEF Stse_String_View stse_sv_trim_right_delim(Stse_String_View sv, char delimiter);
+STSEDEF Stse_String_View stse_sv_trim_right_delim_cstr(Stse_String_View sv, const char *delimiters);
+STSEDEF Stse_String_View stse_sv_trim_right_delim_sv(Stse_String_View sv, Stse_String_View delimiters);
+STSEDEF Stse_String_View stse_sv_trim_right_pred(Stse_String_View sv, int (*predicate)(int));
+
+STSEDEF Stse_String_View stse_sv_trim(Stse_String_View sv);
+STSEDEF Stse_String_View stse_sv_trim_delim(Stse_String_View sv, char delimiter);
+STSEDEF Stse_String_View stse_sv_trim_delim_cstr(Stse_String_View sv, const char *delimiters);
+STSEDEF Stse_String_View stse_sv_trim_delim_sv(Stse_String_View sv, Stse_String_View delimiters);
+STSEDEF Stse_String_View stse_sv_trim_pred(Stse_String_View sv, int (*predicate)(int));
+
+STSEDEF Stse_String_View stse_sv_tok(Stse_String_View *sv);
+STSEDEF Stse_String_View stse_sv_tok_delim(Stse_String_View *sv, char delimiter);
+STSEDEF Stse_String_View stse_sv_tok_delim_cstr(Stse_String_View *sv, const char *delimiters);
+STSEDEF Stse_String_View stse_sv_tok_delim_sv(Stse_String_View *sv, Stse_String_View delimiters);
+STSEDEF Stse_String_View stse_sv_tok_delim_pred(Stse_String_View *sv, int (*is_delim)(int));
+STSEDEF Stse_String_View stse_sv_tok_chars_cstr(Stse_String_View *sv, const char *allowed_chars);
+STSEDEF Stse_String_View stse_sv_tok_chars_sv(Stse_String_View *sv,Stse_String_View allowed_chars);
+STSEDEF bool stse_sv_tok_start(Stse_String_View *sv, Stse_String_View prefix);
+STSEDEF bool stse_sv_tok_end(Stse_String_View *sv, Stse_String_View suffix);
+
+STSEDEF bool stse_sv_eq(Stse_String_View sv1, Stse_String_View sv2);
+STSEDEF bool stse_sv_starts_with(Stse_String_View sv, Stse_String_View prefix);
+STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix);
+
 #endif /* STSE_H_ */
 
 #ifdef STSE_IMPLEMENTATION
@@ -222,7 +284,12 @@ STSEDEF void stse_tmp_rewind(size_t save_state) {
 STSEDEF void *stse_tmp_alloc(size_t bytes) {
 	size_t word_size = sizeof(uintptr_t);
 	bytes = (bytes+word_size-1)/word_size*word_size;
-	if (stse_tmp_buffer_size + bytes > STSE_TMP_BUF_CAP) return NULL;
+	if (stse_tmp_buffer_size + bytes > STSE_TMP_BUF_CAP)
+#ifdef STSE_NO_ASSERT_ALLOCATION
+		return NULL;
+#else
+		STSE_ASSERT(false && "tmp buffer out of memory");
+#endif /* STSE_ASSERT_ALLOCATION */
 	void *result = &stse_tmp_buffer[stse_tmp_buffer_size];
 	stse_tmp_buffer_size += bytes;
 	return result;
@@ -231,7 +298,9 @@ STSEDEF void *stse_tmp_alloc(size_t bytes) {
 STSEDEF char *stse_tmp_strdup(const char *src) {
 	size_t n = strlen(src);
 	char *copy = stse_tmp_alloc(n + 1);
+#ifdef STSE_NO_ASSERT_ALLOCATION
 	if (!copy) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
 	memcpy(copy, src, n);
 	copy[n] = '\0';
 	return copy;
@@ -262,7 +331,9 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap) {
 	STSE_ASSERT(n >= 0);
 
 	char *result = stse_tmp_alloc(n+1);
+#ifdef STSE_NO_ASSERT_ALLOCATION
 	if (!result) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
 	va_copy(args, ap);
 	vsnprintf(result, n+1, format, args);
 	va_end(args);
@@ -288,7 +359,9 @@ STSEDEF void *stse_pool_alloc(Stse_Pool *pool, size_t bytes) {
 	while (bytes + sizeof(_Stse_Pool_Block) > n) n *= 2;
 
 	_Stse_Pool_Block *block = STSE_REALLOC(NULL, n);
+#ifdef STSE_NO_ASSERT_ALLOCATION
 	if (!block) return NULL;
+#endif /* STSE_NO_ASSERT_ALLOCATION */
 
 	*block = (_Stse_Pool_Block) {
 		.next = pool->blocks,
@@ -314,7 +387,9 @@ STSEDEF void *stse_pool_realloc(Stse_Pool *pool, void *data, size_t old_size, si
 	new_size = (new_size + word_size - 1)/word_size*word_size;
 	if (new_size > old_size) {
 		void *result = stse_pool_alloc(pool, new_size);
+#ifdef STSE_NO_ASSERT_ALLOCATION
 		if (!result) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
 		memcpy(result, data, old_size);
 		return result;
 	}
@@ -331,6 +406,276 @@ STSEDEF void stse_pool_free(Stse_Pool *pool) {
 	}
 
 	pool->blocks = NULL;
+}
+
+STSEDEF Stse_String_View stse_sv_from_cstr(const char *cstr) {
+	return (Stse_String_View) { .data = cstr, .len = strlen(cstr) };
+}
+
+STSEDEF const char *stse_sv_to_tmp_cstr(Stse_String_View sv) {
+	char *cstr = stse_tmp_alloc(sv.len + 1);
+
+#ifdef STSE_NO_ASSERT_ALLOCATION
+	if (!cstr) return NULL;
+#endif /* STSE_ASSERT_ALLOCATION */
+
+	memcpy(cstr, sv.data, sv.len);
+	cstr[sv.len] = '\0';
+	return cstr;
+}
+
+STSEDEF Stse_String_View stse_sv_trim_left(Stse_String_View sv) {
+	return stse_sv_trim_left_pred(sv, &isspace);
+}
+
+STSEDEF Stse_String_View stse_sv_trim_left_delim(Stse_String_View sv, char delimiter) {
+	while (sv.len > 0 && sv.data[0] == delimiter) {
+		sv.data++;
+		sv.len--;
+	}
+
+	return sv;
+}
+
+STSEDEF Stse_String_View stse_sv_trim_left_delim_cstr(Stse_String_View sv, const char *delimiters) {
+	return stse_sv_trim_left_delim_sv(sv, stse_sv_from_cstr(delimiters));
+}
+
+STSEDEF Stse_String_View stse_sv_trim_left_delim_sv(Stse_String_View sv, Stse_String_View delimiters) {
+	bool done = false;
+	while (sv.len > 0 && !done) {
+		char c = sv.data[0];
+		done = true;
+		for (size_t i = 0; i < delimiters.len; i++) {
+			if (c == delimiters.data[i]) {
+				done = false;
+				sv.data++;
+				sv.len--;
+				break;
+			}
+		}
+	} 
+
+	return sv;
+}
+
+STSEDEF Stse_String_View stse_sv_trim_left_pred(Stse_String_View sv, int (*predicate)(int)) {
+	while (sv.len > 0 && predicate(sv.data[0])) {
+		sv.data++;
+		sv.len--;
+	}
+
+	return sv;
+}
+
+STSEDEF Stse_String_View stse_sv_trim_right(Stse_String_View sv) {
+	return stse_sv_trim_right_pred(sv, &isspace);
+}
+
+STSEDEF Stse_String_View stse_sv_trim_right_delim(Stse_String_View sv, char delimiter) {
+	while (sv.len > 0 && sv.data[sv.len-1] == delimiter) {
+		sv.len--;
+	}
+
+	return sv;
+}
+
+STSEDEF Stse_String_View stse_sv_trim_right_delim_cstr(Stse_String_View sv, const char *delimiters) {
+	return stse_sv_trim_right_delim_sv(sv, stse_sv_from_cstr(delimiters));
+}
+
+STSEDEF Stse_String_View stse_sv_trim_right_delim_sv(Stse_String_View sv, Stse_String_View delimiters) {
+	bool done = false;
+	while (sv.len > 0 && !done) {
+		char c = sv.data[sv.len - 1];
+		done = true;
+		for (size_t i = 0; i < delimiters.len; i++) {
+			if (c == delimiters.data[i]) {
+				done = false;
+				sv.len--;
+				break;
+			}
+		}
+	} 
+
+	return sv;
+}
+
+STSEDEF Stse_String_View stse_sv_trim_right_pred(Stse_String_View sv, int (*predicate)(int)) {
+	while (sv.len > 0 && predicate(sv.data[sv.len-1])) {
+		sv.len--;
+	}
+
+	return sv;
+}
+
+STSEDEF Stse_String_View stse_sv_trim(Stse_String_View sv) {
+	return stse_sv_trim_left(stse_sv_trim_right(sv));
+}
+
+STSEDEF Stse_String_View stse_sv_trim_delim(Stse_String_View sv, char delimiter) {
+	return stse_sv_trim_left_delim(stse_sv_trim_right_delim(sv, delimiter), delimiter);
+}
+
+STSEDEF Stse_String_View stse_sv_trim_delim_cstr(Stse_String_View sv, const char *delimiters) {
+	return stse_sv_trim_left_delim_cstr(stse_sv_trim_right_delim_cstr(sv, delimiters), delimiters);
+}
+
+STSEDEF Stse_String_View stse_sv_trim_delim_sv(Stse_String_View sv, Stse_String_View delimiters) {
+	return stse_sv_trim_left_delim_sv(stse_sv_trim_right_delim_sv(sv, delimiters), delimiters);
+}
+
+STSEDEF Stse_String_View stse_sv_trim_pred(Stse_String_View sv, int (*predicate)(int)) {
+	return stse_sv_trim_left_pred(stse_sv_trim_right_pred(sv, predicate), predicate);
+}
+
+STSEDEF Stse_String_View stse_sv_tok(Stse_String_View *sv) {
+	return stse_sv_tok_delim_pred(sv, &isspace);
+}
+
+STSEDEF Stse_String_View stse_sv_tok_delim(Stse_String_View *sv, char delimiter) {
+	*sv = stse_sv_trim_left_delim(*sv, delimiter);
+
+	Stse_String_View result = (Stse_String_View) {
+		.data = sv->data,
+		.len = 0,
+	};
+
+	while (sv->len > 0 && sv->data[0] != delimiter) {
+		sv->data++;
+		sv->len--;
+		result.len++;
+	}
+
+	return result;
+}
+
+STSEDEF Stse_String_View stse_sv_tok_delim_cstr(Stse_String_View *sv, const char *delimiters) {
+	return stse_sv_tok_delim_sv(sv, stse_sv_from_cstr(delimiters));
+}
+
+STSEDEF Stse_String_View stse_sv_tok_delim_sv(Stse_String_View *sv,  Stse_String_View delimiters) {
+	*sv = stse_sv_trim_left_delim_sv(*sv, delimiters);
+
+	Stse_String_View result = (Stse_String_View) {
+		.data = sv->data,
+		.len = 0,
+	};
+
+	while (sv->len > 0) {
+		char c = sv->data[0];
+		bool done = false;
+		for (size_t i = 0; i < delimiters.len; i++) {
+			if (c == delimiters.data[i]) {
+				done = true;
+				break;
+			}
+		}
+
+		if (done) break;
+
+		sv->data++;
+		sv->len--;
+		result.len++;
+	}  
+
+	return result;
+}
+
+STSEDEF Stse_String_View stse_sv_tok_delim_pred(Stse_String_View *sv, int (*is_delim)(int)) {
+	*sv = stse_sv_trim_left_pred(*sv, is_delim);
+
+	Stse_String_View result = (Stse_String_View) {
+		.data = sv->data,
+		.len = 0,
+	};
+
+	while (sv->len > 0 && !is_delim(sv->data[0])) {
+		sv->data++;
+		sv->len--;
+		result.len++;
+	} 
+
+	return result;
+}
+
+STSEDEF Stse_String_View stse_sv_tok_chars_cstr(Stse_String_View *sv, const char *allowed_chars) {
+	return stse_sv_tok_chars_sv(sv, stse_sv_from_cstr(allowed_chars));
+}
+
+STSEDEF Stse_String_View stse_sv_tok_chars_sv(Stse_String_View *sv, Stse_String_View allowed_chars) {
+	while (sv->len > 0) {
+		char c = sv->data[0];
+		bool done = false;
+		for (size_t i = 0; i < allowed_chars.len; i++) {
+			if (c == allowed_chars.data[i]) {
+				done = true;
+				break;
+			}
+		}
+
+		if (done) break;
+
+		sv->data++;
+		sv->len--;
+	}  
+
+	Stse_String_View result = (Stse_String_View) {
+		.data = sv->data,
+		.len = 0,
+	};
+
+	bool done = false;
+	while (sv->len > 0 && !done) {
+		char c = sv->data[0];
+		done = true;
+		for (size_t i = 0; i < allowed_chars.len; i++) {
+			if (c == allowed_chars.data[i]) {
+				done = false;
+				sv->data++;
+				sv->len--;
+				result.len++;
+				break;
+			}
+		}
+	} 
+
+	return result;
+}
+
+STSEDEF bool stse_sv_tok_start(Stse_String_View *sv,  Stse_String_View prefix) {
+	if (!stse_sv_starts_with(*sv, prefix)) return false;
+	sv->len -= prefix.len;
+	sv->data += prefix.len;
+	return true;
+}
+
+STSEDEF bool stse_sv_tok_end(Stse_String_View *sv,  Stse_String_View suffix) {
+	if (!stse_sv_ends_with(*sv, suffix)) return false;
+	sv->len -= suffix.len;
+	return true;
+}
+
+STSEDEF bool stse_sv_eq(Stse_String_View sv1, Stse_String_View sv2) {
+	if (sv1.len != sv2.len) return false;
+	for (size_t i = 0; i < sv1.len; i++) {
+		if (sv1.data[i] != sv2.data[i]) return false;
+	}
+
+	return true;
+}
+
+STSEDEF bool stse_sv_starts_with(Stse_String_View sv, Stse_String_View prefix) {
+	if (sv.len < prefix.len) return false;
+	sv.len = prefix.len;
+	return stse_sv_eq(sv, prefix);
+}
+
+STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix) {
+	if (sv.len < suffix.len) return false;
+	sv.data += sv.len - suffix.len;
+	sv.len = suffix.len;
+	return stse_sv_eq(sv, suffix);
 }
 
 #endif /* STSE_IMPLEMENTATION */
@@ -356,4 +701,36 @@ STSEDEF void stse_pool_free(Stse_Pool *pool) {
 #define pool_calloc stse_pool_calloc
 #define pool_realloc stse_pool_realloc
 #define pool_free stse_pool_free
+#define SV_FMT STSE_SV_FMT
+#define SV_ARG STSE_SV_ARG
+#define String_View Stse_String_View
+#define sv_from_cstr stse_sv_from_cstr
+#define sv_to_tmp_cstr stse_sv_to_tmp_cstr
+#define sv_trim_left stse_sv_trim_left
+#define sv_trim_left_delim stse_sv_trim_left_delim
+#define sv_trim_left_delim_cstr stse_sv_trim_left_delim_cstr
+#define sv_trim_left_delim_sv stse_sv_trim_left_delim_sv
+#define sv_trim_left_pred stse_sv_trim_left_pred
+#define sv_trim_right stse_sv_trim_right
+#define sv_trim_right_delim stse_sv_trim_right_delim
+#define sv_trim_right_delim_cstr stse_sv_trim_right_delim_cstr
+#define sv_trim_right_delim_sv stse_sv_trim_right_delim_sv
+#define sv_trim_right_pred stse_sv_trim_right_pred
+#define sv_trim stse_sv_trim
+#define sv_trim_delim stse_sv_trim_delim
+#define sv_trim_delim_cstr stse_sv_trim_delim_cstr
+#define sv_trim_delim_sv stse_sv_trim_delim_sv
+#define sv_trim_pred stse_sv_trim_pred
+#define sv_tok stse_sv_tok
+#define sv_tok_delim stse_sv_tok_delim
+#define sv_tok_delim_cstr stse_sv_tok_delim_cstr
+#define sv_tok_delim_sv stse_sv_tok_delim_sv
+#define sv_tok_delim_pred stse_sv_tok_delim_pred
+#define sv_tok_chars_cstr stse_sv_tok_chars_cstr
+#define sv_tok_chars_sv stse_sv_tok_chars_sv
+#define sv_tok_start stse_sv_tok_start
+#define sv_tok_end stse_sv_tok_end
+#define sv_eq stse_sv_eq
+#define sv_starts_with stse_sv_starts_with
+#define sv_ends_with stse_sv_ends_with
 #endif /* STSE_OMIT_NS */

@@ -1,0 +1,28 @@
+sv: `  
+   	some text   
+  `
+trimmed: `some text`
+trimmed_cstr = `some text`
+trimmed_space: `
+   	some text   
+`
+trimmed_space_nl: `	some text`
+sv: `precentresuf`
+sv: `centre`
+ok
+space char:
+`A`
+`few	words`
+delims cstr:
+`A`
+`few`
+`words`
+allowed_chars cstr:
+`A`
+`few`
+`words`
+pred (isspace):
+`A`
+`few`
+`words`
+done!
