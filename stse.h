@@ -32,7 +32,7 @@
  * obtained through an allocation, any lengthening of the array wil cause a reallocation.
  * Actions that dont increase the length like removing elements dont cause a reallocation
  * and modify the original array. when you append something to a shortened slice it doesn't
- * change the original array, althoug it could: for example (pseudocode):
+ * change the original array, althoug it could, for example:
  *    da = [10, 20, 30, 40, 50]
  *    slice = stse_da_slice(da, 1, 3) // slice = [20, 30, 40], da = [10, 20, 30, 40, 50]
  *    stse_da_pop(&slice)             // slice = [20, 30], da = [10, 20, 30, 40, 50]
@@ -120,3 +120,16 @@
 #define stse_da_free(da) STSE_FREE((da)->items)
 
 #endif /* STSE_H_ */
+
+#ifdef STSE_OMIT_NS
+#define SWAP STSE_SWAP
+#define da_reserve stse_da_reserve
+#define da_push stse_da_push
+#define da_pop stse_da_pop
+#define da_insert stse_da_insert
+#define da_remove stse_da_remove
+#define da_remove_unordered stse_da_remove_unordered
+#define da_slice stse_da_slice
+#define da_append_all stse_da_append_all
+#define da_free stse_da_free
+#endif /* STSE_OMIT_NS */
