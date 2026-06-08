@@ -189,6 +189,31 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 
 #define stse_da_free(da) STSE_FREE((da)->items)
 
+/////////////////////
+// string builders //
+/////////////////////
+
+typedef struct {
+	char *items;
+	size_t len;
+	size_t cap;
+} Stse_String_Builder;
+
+STSEDEF int stse_sb_appendf(Stse_String_Builder *sb,
+		STSE_FORMAT_STRING const char *fmt, ...) STSE_PRINTF_FORMAT(2, 3);
+#define stse_sb_append(sb, c) stse_da_push((sb), (c))
+#define stse_sb_insert(sb, i, c) stse_da_insert((sb), (i), (c))
+#define stse_sb_append_buf(sb, buf, n) stse_da_append_all((sb), (buf), (n))
+#define stse_sb_append_sv(sb, sv) stse_da_append_buf((sb), (sv).data, (sv).len)
+#define stse_sb_append_cstr(sb, cstr)   \
+	do {                                \
+		const char *s = (cstr);         \
+		size_t n = strlen(s);           \
+		stse_sb_append_buf((sb), s, n); \
+	} while (0)
+
+#define stse_sb_free(sb) stse_da_free((sb))
+
 //////////////////
 // memory pools //
 //////////////////
@@ -339,6 +364,24 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap) {
 	va_end(args);
 
 	return result;
+}
+
+STSEDEF int stse_sb_appendf(Stse_String_Builder *sb, const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	int n = vsnprintf(NULL, 0, fmt, ap);
+	va_end(ap);
+
+	size_t new_cap = sb->len + n + 1;
+	stse_da_reserve(sb, new_cap);
+
+	va_start(ap, fmt);
+	vsnprintf(sb->items + sb->len, n + 1, fmt, ap);
+	va_end(ap);
+
+	sb->len += n;
+
+	return n;
 }
 
 STSEDEF void *stse_pool_alloc(Stse_Pool *pool, size_t bytes) {
@@ -691,6 +734,14 @@ STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix) {
 #define da_slice stse_da_slice
 #define da_append_all stse_da_append_all
 #define da_free stse_da_free
+#define String_Builder Stse_String_Builder
+#define sb_appendf stse_sb_appendf
+#define sb_append stse_sb_append
+#define sb_insert stse_sb_insert
+#define sb_append_buf stse_sb_append_buf
+#define sb_append_sv stse_sb_append_sv
+#define sb_append_cstr stse_sb_append_cstr
+#define sb_free stse_sb_free
 #define tmp_reset stse_tmp_reset
 #define tmp_save stse_tmp_save
 #define tmp_rewind stse_tmp_rewind
