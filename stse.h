@@ -69,7 +69,10 @@
 #include <string.h>
 #include <ctype.h>
 
+// usefull macros
+#define STSE_ARRAY_LEN(arr) (sizeof((arr))/sizeof(*(arr)))
 #define STSE_SWAP(T, a, b) do { T temp = a; a = b; b = t; } while (0)
+#define STSE_SHIFT(arr, arr_len) (STSE_ASSERT((arr_len) > 0), (arr_len)--, *(arr)++)
 
 //////////////////////
 // temporary buffer //
@@ -819,7 +822,9 @@ STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix) {
 #endif /* STSE_IMPLEMENTATION */
 
 #ifdef STSE_OMIT_NS
+#define ARRAY_LEN STSE_ARRAY_LEN
 #define SWAP STSE_SWAP
+#define SHIFT STSE_SHIFT
 #define da_reserve stse_da_reserve
 #define da_push stse_da_push
 #define da_pop stse_da_pop
