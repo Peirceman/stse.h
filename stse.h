@@ -120,12 +120,13 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 			}                                                                              \
 			if (sliced) {                                                                  \
 				void *items = STSE_REALLOC(NULL, (da)->cap * sizeof(*(da)->items));        \
+				STSE_ASSERT((da)->items && "could not allocate memory");                   \
 				memcpy(items, (da)->items, (da)->len * sizeof(*(da)->items));              \
 				(da)->items = items;                                                       \
 			} else {                                                                       \
 				(da)->items = STSE_REALLOC((da)->items, (da)->cap * sizeof(*(da)->items)); \
+				STSE_ASSERT((da)->items && "could not allocate memory");                   \
 			}                                                                              \
-			STSE_ASSERT((da)->items && "could not allocate memory");                       \
 		}                                                                                  \
 	} while (0)
 
