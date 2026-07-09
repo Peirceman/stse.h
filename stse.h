@@ -338,7 +338,7 @@ STSEDEF uintptr_t stse_tmp_save(void) {
 }
 
 STSEDEF void stse_tmp_rewind(uintptr_t save_state) {
-	return stse_pool_rewind(&stse_tmp_pool, save_state);
+	stse_pool_rewind(&stse_tmp_pool, save_state);
 }
 
 STSEDEF void *stse_tmp_alloc(size_t bytes) {
@@ -350,7 +350,7 @@ STSEDEF void *stse_tmp_calloc(size_t bytes) {
 }
 
 STSEDEF void *stse_tmp_realloc(void *data, size_t old_size, size_t new_size) {
-	return stse_pool_realloc(&stse_tmp_pool, bytes);
+	return stse_pool_realloc(&stse_tmp_pool, data, old_size, new_size);
 }
 #else
 static char stse_tmp_buffer[STSE_TMP_BUF_CAP] = {0};
