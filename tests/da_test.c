@@ -64,6 +64,8 @@ int main(void) {
 	print_ints(ints);
 
 	stse_da_append_all(&ints, slice.items, slice.len);
+	printf("%zu\n", ints.len);
+	stse_da_push(&ints, ints.len);
 	print_ints(ints);
 
 	stse_da_free(&ints);

@@ -138,27 +138,27 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define STSE_DA_INITIAL_CAPACITY 256
 #endif /* STSE_DA_INITIAL_CAPACITY */
 
-#define stse_da_reserve(da, new_cap)                                                       \
-	do {                                                                                   \
-		if ((da)->cap < (new_cap)) {                                                       \
-			bool sliced = false;                                                           \
-			if ((da)->cap == 0) {                                                          \
-				if ((da)->len != 0) sliced = true;                                         \
-				(da)->cap = STSE_DA_INITIAL_CAPACITY;                                      \
-			}                                                                              \
-			while ((da)->cap < (new_cap)) {                                                \
-				(da)->cap *= 2;                                                            \
-			}                                                                              \
-			if (sliced) {                                                                  \
-				void *items = STSE_REALLOC(NULL, (da)->cap * sizeof(*(da)->items));        \
-				STSE_ASSERT((da)->items && "could not allocate memory");                   \
-				memcpy(items, (da)->items, (da)->len * sizeof(*(da)->items));              \
-				(da)->items = items;                                                       \
-			} else {                                                                       \
-				(da)->items = STSE_REALLOC((da)->items, (da)->cap * sizeof(*(da)->items)); \
-				STSE_ASSERT((da)->items && "could not allocate memory");                   \
-			}                                                                              \
-		}                                                                                  \
+#define stse_da_reserve(da, new_cap)                                                                  \
+	do {                                                                                              \
+		if ((da)->cap < (new_cap)) {                                                                  \
+			bool __stse_da_reserve_sliced = false;                                                    \
+			if ((da)->cap == 0) {                                                                     \
+				if ((da)->len != 0) __stse_da_reserve_sliced = true;                                  \
+				(da)->cap = STSE_DA_INITIAL_CAPACITY;                                                 \
+			}                                                                                         \
+			while ((da)->cap < (new_cap)) {                                                           \
+				(da)->cap *= 2;                                                                       \
+			}                                                                                         \
+			if (__stse_da_reserve_sliced) {                                                           \
+				void *__stse_da_reserve_items = STSE_REALLOC(NULL, (da)->cap * sizeof(*(da)->items)); \
+				STSE_ASSERT((da)->items && "could not allocate memory");                              \
+				memcpy(__stse_da_reserve_items, (da)->items, (da)->len * sizeof(*(da)->items));       \
+				(da)->items = __stse_da_reserve_items;                                                \
+			} else {                                                                                  \
+				(da)->items = STSE_REALLOC((da)->items, (da)->cap * sizeof(*(da)->items));            \
+				STSE_ASSERT((da)->items && "could not allocate memory");                              \
+			}                                                                                         \
+		}                                                                                             \
 	} while (0)
 
 #define stse_da_push(da, item)                \
@@ -169,36 +169,36 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 
 #define stse_da_pop(da) ((da)->items[(STSE_ASSERT((da)->len > 0), --(da)->len)])
 
-#define stse_da_insert(da, index, item)                    \
-	do {                                                   \
-		size_t i = (index);                                \
-		STSE_ASSERT(i >= 0);                               \
-		if (i >= (da)->len) stse_da_push((da), (item));    \
-		else {                                             \
-			stse_da_reserve((da), (da)->len + 1);          \
-			memmove(&(da)->items[i+1],                     \
-					&(da)->items[i],                       \
-					((da)->len - i)*sizeof(*(da)->items)); \
-			(da)->items[i] = (item);                       \
-			(da)->len++;                                   \
-		}                                                  \
+#define stse_da_insert(da, index, item)                                     \
+	do {                                                                    \
+		size_t __stse_da_insert_i = (index);                                \
+		STSE_ASSERT(__stse_da_insert_i >= 0);                               \
+		if (__stse_da_insert_i >= (da)->len) stse_da_push((da), (item));    \
+		else {                                                              \
+			stse_da_reserve((da), (da)->len + 1);                           \
+			memmove(&(da)->items[__stse_da_insert_i+1],                     \
+					&(da)->items[__stse_da_insert_i],                       \
+					((da)->len - __stse_da_insert_i)*sizeof(*(da)->items)); \
+			(da)->items[__stse_da_insert_i] = (item);                       \
+			(da)->len++;                                                    \
+		}                                                                   \
 	} while (0)
 
-#define stse_da_remove(da, index)                            \
-	do {                                                     \
-		size_t i = (index);                                  \
-		STSE_ASSERT((da)->len > i && i >= 0);                \
-		memmove(&(da)->items[i],                             \
-				&(da)->items[i+1],                           \
-				((da)->len - i - 1) * sizeof(*(da)->items)); \
-		(da)->len--;                                         \
+#define stse_da_remove(da, index)                                               \
+	do {                                                                        \
+		size_t __stse_da_remove_i = (index);                                    \
+		STSE_ASSERT((da)->len > __stse_da_remove_i && __stse_da_remove_i >= 0); \
+		memmove(&(da)->items[__stse_da_remove_i],                               \
+				&(da)->items[__stse_da_remove_i+1],                             \
+				((da)->len - __stse_da_remove_i - 1) * sizeof(*(da)->items));   \
+		(da)->len--;                                                            \
 	} while (0)
 
-#define stse_da_remove_unordered(da, index)        \
-	do {                                           \
-		size_t i = (index);                        \
-		STSE_ASSERT((da)->len > i && i >= 0);      \
-		(da)->items[i] = (da)->items[--(da)->len]; \
+#define stse_da_remove_unordered(da, index)                                                         \
+	do {                                                                                            \
+		size_t __stse_da_remove_unordered_i = (index);                                              \
+		STSE_ASSERT((da)->len > __stse_da_remove_unordered_i && __stse_da_remove_unordered_i >= 0); \
+		(da)->items[__stse_da_remove_unordered_i] = (da)->items[--(da)->len];                       \
 	} while (0)
 
 #define stse_da_slice(T, da, start_incl, slice_length)              \
@@ -238,11 +238,10 @@ STSEDEF int stse_sb_appendf(Stse_String_Builder *sb,
 #define stse_sb_insert(sb, i, c) stse_da_insert((sb), (i), (c))
 #define stse_sb_append_buf(sb, buf, n) stse_da_append_all((sb), (buf), (n))
 #define stse_sb_append_sv(sb, sv) stse_da_append_buf((sb), (sv).data, (sv).len)
-#define stse_sb_append_cstr(sb, cstr)   \
-	do {                                \
-		const char *s = (cstr);         \
-		size_t n = strlen(s);           \
-		stse_sb_append_buf((sb), s, n); \
+#define stse_sb_append_cstr(sb, cstr)                                                       \
+	do {                                                                                    \
+		const char *__stse_sb_append_cstr_s = (cstr);                                       \
+		stse_sb_append_buf((sb), __stse_sb_append_cstr_s, strlen(__stse_sb_append_cstr_s)); \
 	} while (0)
 
 #define stse_sb_free(sb) stse_da_free((sb))
