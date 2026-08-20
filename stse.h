@@ -38,6 +38,27 @@
  *           still assert allocations are succesfull, even when this is set), default: unset
  *     - `STSE_TMP_POOL`: when set, use the defined `Stse_Pool` for the tmp buffer instead of a static
  *           array. If this value is set, `STSE_TMP_BUF_CAP` has no effect. default: unset
+ *
+ * LICENSE of nob.h <github.com/tsoding/nob.h> where a lot of inspiration was taken
+ * and code was copied from:
+ * --------------------------------------------------------------------------------
+ * Copyright (c) 2024 Alexey Kutepov
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is furnished to do
+ * so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * --------------------------------------------------------------------------------
  */
 #ifndef STSE_H_
 #define STSE_H_
@@ -85,6 +106,7 @@
 #    endif
 #endif
 
+#include <float.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -320,6 +342,10 @@ STSEDEF bool stse_sv_tok_end(Stse_String_View *sv, Stse_String_View suffix);
 STSEDEF bool stse_sv_eq(Stse_String_View sv1, Stse_String_View sv2);
 STSEDEF bool stse_sv_starts_with(Stse_String_View sv, Stse_String_View prefix);
 STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix);
+
+STSEDEF float stse_fmodf_cycling(float x, float y);
+STSEDEF double stse_fmod_cycling(double x, double y);
+STSEDEF long double stse_fmodl_cycling(long double x, long double y);
 
 #endif /* STSE_H_ */
 
@@ -842,6 +868,221 @@ STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix) {
 	return stse_sv_eq(sv, suffix);
 }
 
+// All function contain a floor. To avoid either
+// an extra macro flag or forcing every user to link with libm,
+// the floor implementation from musl is copied:
+// MUSL: <musl.libc.org>
+// LICENSE:
+// ----------------------------------------------------------------------
+// Copyright © 2005-2020 Rich Felker, et al.
+// 
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
+// 
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+// SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// ----------------------------------------------------------------------
+// 
+// comments for clarity are added which are not present in the musl implementation.
+// /* */-style comments were alread present
+//
+// The implementation of the fmod functions boils down to:
+// x - y * floor(x / y);
+
+STSEDEF float stse_fmodf_cycling(float x, float y) {
+	float frac = x / y;
+	// start floor (musl, see license above)
+	// 32-bit float = 1 sign bit, 8 exponent bits, 23 mantissa bits
+	union { float f; uint32_t i; } u = {frac};
+	int e = (int)(u.i >> 23 & 0xff) - 0x7f;
+	uint32_t m;
+
+	// leave value untouched when exponent is equal to or greater than mantissa,
+	// value is already an integer
+	if (e < 23) {
+		if (e >= 0) {
+			m = 0x007fffff >> e; // mantissa fractional part mask
+
+			if ((u.i & m) != 0) {
+				volatile float f = x + 0x1p120f; // i have no idea 
+				(void)f;
+				// when negative, adding m increases absolute value of integer part by one
+				// this makes sure truncation gives correct floor result
+				if (u.i >> 31) u.i += m;
+				u.i &= ~m; // truncate
+			}
+		} else {
+			// we are in the range (-1, 1)
+			// [0, 1) -> 0
+			// (-1, 0) -> -1
+			// -0 stays -0 i think
+			volatile float f = x + 0x1p120f; // i have no idea 
+			(void)f;
+
+			if (u.i >> 31 == 0) u.i = 0;
+			else if (u.i << 1) u.f = -1.0f; // negative but not zero
+		}
+
+		frac = u.f;
+	}
+	// end floor
+	
+	return x - y * frac;
+}
+
+STSEDEF double stse_fmod_cycling(double x, double y) {
+#if FLT_EVAL_METHOD==0 || FLT_EVAL_METHOD==1
+	static const double toint = 1/DBL_EPSILON;
+	double z;
+#elif FLT_EVAL_METHOD==2
+	static const long double toint = 1/LDBL_EPSILON;
+	long double z;
+#endif
+
+	double frac = x / y;
+
+	// start floor
+	// 64-bit float = 1 sign bit, 11 exponent bits, 52 mantissa bits
+	union { double f; uint64_t i; } u = { frac };
+	int e = u.i >> 52 & 0x7ff;
+	// do nothing if value is an integer or zero
+	if (e < 0x3ff + 52 && frac != 0) {
+		/* z = int(frac) - frac, where int(frac) is an integer neighbor of frac */
+		if (u.i >> 63) z = frac - toint + toint - frac;
+		else z = frac + toint - toint - frac;
+
+		/* special case because of non-nearest rounding modes */
+		if (e <= 0x3ff-1) {
+#if FLT_EVAL_METHOD==0 || FLT_EVAL_METHOD==1
+			volatile double zz = z;
+#elif FLT_EVAL_METHOD==2
+			volatile long double zz = z;
+#endif
+			(void)zz;
+			if (u.i >> 63) {
+				frac = -1.0;
+			} else {
+				frac = 0.0;
+			}
+		} else {
+			if (z > 0) {
+				frac = frac + z - 1;
+			} else {
+				frac = frac + z;
+			}
+		}
+	}
+	// end floor
+
+	return x - y * frac;
+}
+
+#if LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
+
+STSEDEF long double stse_fmodl_cycling(long double x, long double y) {
+	return stse_fmod_cycling(x, y);
+}
+
+#elif (LDBL_MANT_DIG == 64 || LDBL_MANT_DIG == 113) && LDBL_MAX_EXP == 16384
+
+STSEDEF long double stse_fmodl_cycling(long double x, long double y) {
+
+#if LDBL_MANT_DIG == 64 && LDBL_MAX_EXP == 16384 && __BYTE_ORDER == __LITTLE_ENDIAN
+union ldshape {
+	long double f;
+	struct {
+		uint64_t m;
+		uint16_t se;
+	} i;
+};
+#elif LDBL_MANT_DIG == 64 && LDBL_MAX_EXP == 16384 && __BYTE_ORDER == __BIG_ENDIAN
+/* This is the m68k variant of 80-bit long double, and this definition only works
+ * on archs where the alignment requirement of uint64_t is <= 4. */
+union ldshape {
+	long double f;
+	struct {
+		uint16_t se;
+		uint16_t pad;
+		uint64_t m;
+	} i;
+};
+#elif LDBL_MANT_DIG == 113 && LDBL_MAX_EXP == 16384 && __BYTE_ORDER == __LITTLE_ENDIAN
+union ldshape {
+	long double f;
+	struct {
+		uint64_t lo;
+		uint32_t mid;
+		uint16_t top;
+		uint16_t se;
+	} i;
+	struct {
+		uint64_t lo;
+		uint64_t hi;
+	} i2;
+};
+#elif LDBL_MANT_DIG == 113 && LDBL_MAX_EXP == 16384 && __BYTE_ORDER == __BIG_ENDIAN
+union ldshape {
+	long double f;
+	struct {
+		uint16_t se;
+		uint16_t top;
+		uint32_t mid;
+		uint64_t lo;
+	} i;
+	struct {
+		uint64_t hi;
+		uint64_t lo;
+	} i2;
+};
+#else
+#error Unsupported long double representation
+#endif
+	long double frac = x / y;
+
+	// start floor
+	static const long double toint = 1/LDBL_EPSILON;
+
+	union ldshape u = {frac};
+	int e = u.i.se & 0x7fff;
+	long double z;
+
+	if (e < 0x3fff+LDBL_MANT_DIG-1 && frac != 0) {
+		/* z = int(frac) - frac, where int(frac) is an integer neighbor of frac */
+		if (u.i.se >> 15) z = frac - toint + toint - frac;
+		else z = frac + toint - toint - frac;
+		/* special case because of non-nearest rounding modes */
+		if (e <= 0x3fff-1) {
+			volatile long double zz = z;
+			(void)zz;
+			if (u.i.se >> 15) frac = -1;
+			else frac = 0;
+		} else {
+			if (z > 0) frac = frac + z - 1;
+			else frac = frac + z;
+		}
+	}
+
+	// end floor
+
+	return x - y * frac;
+}
+
+#endif
+
+
 #endif /* STSE_IMPLEMENTATION */
 
 #ifdef STSE_OMIT_NS
@@ -914,4 +1155,7 @@ STSEDEF bool stse_sv_ends_with(Stse_String_View sv, Stse_String_View suffix) {
 #define sv_eq stse_sv_eq
 #define sv_starts_with stse_sv_starts_with
 #define sv_ends_with stse_sv_ends_with
+#define fmodf_cycling stse_fmodf_cycling
+#define fmod_cycling  stse_fmod_cycling
+#define fmodl_cycling stse_fmodl_cycling
 #endif /* STSE_OMIT_NS */
