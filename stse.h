@@ -160,6 +160,12 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define STSE_DA_INITIAL_CAPACITY 256
 #endif /* STSE_DA_INITIAL_CAPACITY */
 
+#if STSE_NO_ASSERT_ALLOCATION
+#define STSE_ALLOC_ASSERT(x) (void)0 // probably messes up some registers but who cares.
+#else
+#define STSE_ALLOC_ASSERT(x) STSE_ASSERT(x)
+#endif
+
 #define stse_da_reserve(da, new_cap)                                                                  \
 	do {                                                                                              \
 		if ((da)->cap < (new_cap)) {                                                                  \
@@ -173,12 +179,12 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 			}                                                                                         \
 			if (__stse_da_reserve_sliced) {                                                           \
 				void *__stse_da_reserve_items = STSE_REALLOC(NULL, (da)->cap * sizeof(*(da)->items)); \
-				STSE_ASSERT((da)->items && "could not allocate memory");                              \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                              \
 				memcpy(__stse_da_reserve_items, (da)->items, (da)->len * sizeof(*(da)->items));       \
 				(da)->items = __stse_da_reserve_items;                                                \
 			} else {                                                                                  \
 				(da)->items = STSE_REALLOC((da)->items, (da)->cap * sizeof(*(da)->items));            \
-				STSE_ASSERT((da)->items && "could not allocate memory");                              \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                              \
 			}                                                                                         \
 		}                                                                                             \
 	} while (0)
