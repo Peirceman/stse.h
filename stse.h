@@ -179,12 +179,12 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 			}                                                                                         \
 			if (__stse_da_reserve_sliced) {                                                           \
 				void *__stse_da_reserve_items = STSE_REALLOC(NULL, (da)->cap * sizeof(*(da)->items)); \
-				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                              \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                        \
 				memcpy(__stse_da_reserve_items, (da)->items, (da)->len * sizeof(*(da)->items));       \
 				(da)->items = __stse_da_reserve_items;                                                \
 			} else {                                                                                  \
 				(da)->items = STSE_REALLOC((da)->items, (da)->cap * sizeof(*(da)->items));            \
-				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                              \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                        \
 			}                                                                                         \
 		}                                                                                             \
 	} while (0)
@@ -248,6 +248,142 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 	} while (0)
 
 #define stse_da_free(da) STSE_FREE((da)->items)
+
+#define stse_da_tmp_reserve(da, new_cap)                                                              \
+	do {                                                                                              \
+		if ((da)->cap < (new_cap)) {                                                                  \
+			bool __stse_da_tmp_reserve_sliced = false;                                                \
+			if ((da)->cap == 0) {                                                                     \
+				if ((da)->len != 0) __stse_da_tmp_reserve_sliced = true;                              \
+				(da)->cap = STSE_DA_INITIAL_CAPACITY;                                                 \
+			}                                                                                         \
+			while ((da)->cap < (new_cap)) {                                                           \
+				(da)->cap *= 2;                                                                       \
+			}                                                                                         \
+			if (__stse_da_tmp_reserve_sliced) {                                                       \
+				void *__stse_da_tmp_reserve_items = stse_tmp_alloc((da)->cap * sizeof(*(da)->items)); \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                        \
+				memcpy(__stse_da_tmp_reserve_items, (da)->items, (da)->len * sizeof(*(da)->items));   \
+				(da)->items = __stse_da_tmp_reserve_items;                                            \
+			} else {                                                                                  \
+				(da)->items = stse_tmp_realloc(                                                       \
+                    (da)->items,                                                                      \
+                    (da)->len * sizeof(*(da)->items),                                                 \
+                    (da)->cap * sizeof(*(da)->items));                                                \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                        \
+			}                                                                                         \
+		}                                                                                             \
+	} while (0)
+
+#define stse_da_tmp_push(da, item)                \
+	do {                                          \
+		stse_da_tmp_reserve((da), (da)->len + 1); \
+		(da)->items[(da)->len++] = (item);        \
+	} while (0)
+
+#define stse_da_tmp_pop(da) ((da)->items[(STSE_ASSERT((da)->len > 0), --(da)->len)])
+
+#define stse_da_tmp_insert(da, index, item)                                      \
+	do {                                                                         \
+		size_t __stse_da_tmp_insert_i = (index);                                 \
+		STSE_ASSERT(__stse_da_tmp_insert_i >= 0);                                \
+		if (__stse_da_tmp_insert_i >= (da)->len) stse_da_tmp_push((da), (item)); \
+		else {                                                                   \
+			stse_da_tmp_reserve((da), (da)->len + 1);                            \
+			memmove(&(da)->items[__stse_da_tmp_insert_i+1],                      \
+					&(da)->items[__stse_da_tmp_insert_i],                        \
+					((da)->len - __stse_da_tmp_insert_i)*sizeof(*(da)->items));  \
+			(da)->items[__stse_da_tmp_insert_i] = (item);                        \
+			(da)->len++;                                                         \
+		}                                                                        \
+	} while (0)
+
+#define stse_da_tmp_remove(da, index) stse_da_remove(da, index)
+
+#define stse_da_tmp_remove_unordered(da, index) stse_da_remove_unordered(da, index)
+
+#define stse_da_tmp_slice(T, da, start_incl, slice_length) \
+    stse_da_slice(T, da, start_incl, slice_length)
+
+#define stse_da_tmp_append_all(da, new_items, count)        \
+	do {                                                    \
+		if ((count) > 0) {                                  \
+			stse_da_tmp_reserve((da), (da)->len + (count)); \
+			memcpy((da)->items + (da)->len,                 \
+					(new_items),                            \
+					(count) * sizeof(*(da)->items));        \
+			(da)->len += (count);                           \
+		}                                                   \
+	} while (0)
+
+#define stse_da_pool_reserve(da, new_cap, pool)                                                      \
+	do {                                                                                             \
+		if ((da)->cap < (new_cap)) {                                                                 \
+			bool __stse_da_pool_reserve_sliced = false;                                              \
+			if ((da)->cap == 0) {                                                                    \
+				if ((da)->len != 0) __stse_da_pool_reserve_sliced = true;                            \
+				(da)->cap = STSE_DA_INITIAL_CAPACITY;                                                \
+			}                                                                                        \
+			while ((da)->cap < (new_cap)) {                                                          \
+				(da)->cap *= 2;                                                                      \
+			}                                                                                        \
+			if (__stse_da_pool_reserve_sliced) {                                                     \
+				void *__stse_da_pool_reserve_items =                                                 \
+                    stse_pool_alloc((pool), (da)->cap * sizeof(*(da)->items));                       \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                       \
+				memcpy(__stse_da_pool_reserve_items, (da)->items, (da)->len * sizeof(*(da)->items)); \
+				(da)->items = __stse_da_pool_reserve_items;                                          \
+			} else {                                                                                 \
+				(da)->items = stse_pool_realloc(                                                     \
+                    (pool),                                                                          \
+                    (da)->items,                                                                     \
+                    (da)->len * sizeof(*(da)->items),                                                \
+                    (da)->cap * sizeof(*(da)->items));                                               \
+				STSE_ALLOC_ASSERT((da)->items && "could not allocate memory");                       \
+			}                                                                                        \
+		}                                                                                            \
+	} while (0)
+
+#define stse_da_pool_push(da, item, pool)                  \
+	do {                                                   \
+		stse_da_pool_reserve((pool), (da), (da)->len + 1); \
+		(da)->items[(da)->len++] = (item);                 \
+	} while (0)
+
+#define stse_da_pool_pop(da) stse_da_pop(da)
+
+#define stse_da_pool_insert(da, index, item, pool)                                 \
+	do {                                                                           \
+		size_t __stse_da_pool_insert_i = (index);                                  \
+		STSE_ASSERT(__stse_da_pool_insert_i >= 0);                                 \
+		if (__stse_da_pool_insert_i >= (da)->len) stse_da_pool_push((da), (item)); \
+		else {                                                                     \
+			stse_da_pool_reserve((da), (da)->len + 1);                             \
+			memmove(&(da)->items[__stse_da_pool_insert_i+1],                       \
+					&(da)->items[__stse_da_pool_insert_i],                         \
+					((da)->len - __stse_da_pool_insert_i)*sizeof(*(da)->items));   \
+			(da)->items[__stse_da_pool_insert_i] = (item);                         \
+			(da)->len++;                                                           \
+		}                                                                          \
+	} while (0)
+
+#define stse_da_pool_remove(da, index) stse_da_remove(da, index)
+
+#define stse_da_pool_remove_unordered(da, index) stse_da_remove_unordered(da, index)
+
+#define stse_da_pool_slice(T, da, start_incl, slice_length) \
+    stse_da_slice(T, da, start_incl, slice_length)
+
+#define stse_da_pool_append_all(da, new_items, count, pool)          \
+	do {                                                             \
+		if ((count) > 0) {                                           \
+			stse_da_pool_reserve((da), (da)->len + (count), (pool)); \
+			memcpy((da)->items + (da)->len,                          \
+					(new_items),                                     \
+					(count) * sizeof(*(da)->items));                 \
+			(da)->len += (count);                                    \
+		}                                                            \
+	} while (0)
 
 /////////////////////
 // string builders //
