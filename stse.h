@@ -346,25 +346,25 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 
 #define stse_da_pool_push(da, item, pool)                  \
 	do {                                                   \
-		stse_da_pool_reserve((pool), (da), (da)->len + 1); \
+		stse_da_pool_reserve((da), (da)->len + 1, (pool)); \
 		(da)->items[(da)->len++] = (item);                 \
 	} while (0)
 
 #define stse_da_pool_pop(da) stse_da_pop(da)
 
-#define stse_da_pool_insert(da, index, item, pool)                                 \
-	do {                                                                           \
-		size_t __stse_da_pool_insert_i = (index);                                  \
-		STSE_ASSERT(__stse_da_pool_insert_i >= 0);                                 \
-		if (__stse_da_pool_insert_i >= (da)->len) stse_da_pool_push((da), (item)); \
-		else {                                                                     \
-			stse_da_pool_reserve((da), (da)->len + 1);                             \
-			memmove(&(da)->items[__stse_da_pool_insert_i+1],                       \
-					&(da)->items[__stse_da_pool_insert_i],                         \
-					((da)->len - __stse_da_pool_insert_i)*sizeof(*(da)->items));   \
-			(da)->items[__stse_da_pool_insert_i] = (item);                         \
-			(da)->len++;                                                           \
-		}                                                                          \
+#define stse_da_pool_insert(da, index, item, pool)                                         \
+	do {                                                                                   \
+		size_t __stse_da_pool_insert_i = (index);                                          \
+		STSE_ASSERT(__stse_da_pool_insert_i >= 0);                                         \
+		if (__stse_da_pool_insert_i >= (da)->len) stse_da_pool_push((da), (item), (pool)); \
+		else {                                                                             \
+			stse_da_pool_reserve((da), (da)->len + 1);                                     \
+			memmove(&(da)->items[__stse_da_pool_insert_i+1],                               \
+					&(da)->items[__stse_da_pool_insert_i],                                 \
+					((da)->len - __stse_da_pool_insert_i)*sizeof(*(da)->items));           \
+			(da)->items[__stse_da_pool_insert_i] = (item);                                 \
+			(da)->len++;                                                                   \
+		}                                                                                  \
 	} while (0)
 
 #define stse_da_pool_remove(da, index) stse_da_remove(da, index)
