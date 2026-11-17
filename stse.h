@@ -117,7 +117,7 @@
 
 // usefull macros
 #define STSE_ARRAY_LEN(arr) (sizeof((arr))/sizeof(*(arr)))
-#define STSE_SWAP(T, a, b) do { T temp = a; a = b; b = t; } while (0)
+#define STSE_SWAP(T, a, b) do { T temp = a; a = b; b = temp; } while (0)
 #define STSE_SHIFT(arr, arr_len) (STSE_ASSERT((arr_len) > 0), (arr_len)--, *(arr)++)
 
 //////////////////////
@@ -200,7 +200,6 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define stse_da_insert(da, index, item)                                     \
 	do {                                                                    \
 		size_t __stse_da_insert_i = (index);                                \
-		STSE_ASSERT(__stse_da_insert_i >= 0);                               \
 		if (__stse_da_insert_i >= (da)->len) stse_da_push((da), (item));    \
 		else {                                                              \
 			stse_da_reserve((da), (da)->len + 1);                           \
@@ -215,7 +214,7 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define stse_da_remove(da, index)                                               \
 	do {                                                                        \
 		size_t __stse_da_remove_i = (index);                                    \
-		STSE_ASSERT((da)->len > __stse_da_remove_i && __stse_da_remove_i >= 0); \
+		STSE_ASSERT((da)->len > __stse_da_remove_i); \
 		memmove(&(da)->items[__stse_da_remove_i],                               \
 				&(da)->items[__stse_da_remove_i+1],                             \
 				((da)->len - __stse_da_remove_i - 1) * sizeof(*(da)->items));   \
@@ -225,7 +224,7 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define stse_da_remove_unordered(da, index)                                                         \
 	do {                                                                                            \
 		size_t __stse_da_remove_unordered_i = (index);                                              \
-		STSE_ASSERT((da)->len > __stse_da_remove_unordered_i && __stse_da_remove_unordered_i >= 0); \
+		STSE_ASSERT((da)->len > __stse_da_remove_unordered_i); \
 		(da)->items[__stse_da_remove_unordered_i] = (da)->items[--(da)->len];                       \
 	} while (0)
 
@@ -286,7 +285,6 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define stse_da_tmp_insert(da, index, item)                                      \
 	do {                                                                         \
 		size_t __stse_da_tmp_insert_i = (index);                                 \
-		STSE_ASSERT(__stse_da_tmp_insert_i >= 0);                                \
 		if (__stse_da_tmp_insert_i >= (da)->len) stse_da_tmp_push((da), (item)); \
 		else {                                                                   \
 			stse_da_tmp_reserve((da), (da)->len + 1);                            \
@@ -355,7 +353,6 @@ STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
 #define stse_da_pool_insert(da, index, item, pool)                                         \
 	do {                                                                                   \
 		size_t __stse_da_pool_insert_i = (index);                                          \
-		STSE_ASSERT(__stse_da_pool_insert_i >= 0);                                         \
 		if (__stse_da_pool_insert_i >= (da)->len) stse_da_pool_push((da), (item), (pool)); \
 		else {                                                                             \
 			stse_da_pool_reserve((da), (da)->len + 1);                                     \
