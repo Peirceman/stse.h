@@ -38,6 +38,7 @@
  *           still assert allocations are succesfull, even when this is set), default: unset
  *     - `STSE_TMP_POOL`: when set, use the defined `Stse_Pool` for the tmp buffer instead of a static
  *           array. If this value is set, `STSE_TMP_BUF_CAP` has no effect. default: unset
+ *     - `STSE_NO_NUMBER_TYPES`: disable's typedefs for number types (i.e. i32 for int32_t, u8, ...)
  *
  * LICENSE of nob.h <github.com/tsoding/nob.h> where a lot of inspiration was taken
  * and code was copied from:
@@ -137,6 +138,24 @@ STSEDEF char *stse_tmp_strdup(const char *src);
 STSEDEF char *stse_tmp_strndup(const char *src, size_t n);
 STSEDEF char *stse_tmp_sprintf(STSE_FORMAT_STRING const char *format, ...) STSE_PRINTF_FORMAT(1, 2);
 STSEDEF char *stse_tmp_vsprintf(const char *format, va_list ap);
+
+//////////////////
+// Number Types //
+//////////////////
+#ifndef STSE_NO_NUMBER_TYPES
+typedef int8_t         i8;
+typedef int16_t        i16;
+typedef int32_t        i32;
+typedef int64_t        i64;
+typedef uint8_t        u8;
+typedef uint16_t       u16;
+typedef uint32_t       u32;
+typedef uint64_t       u64;
+typedef float          f32;
+typedef double         f64;
+typedef complex float  c32;
+typedef complex double c64;
+#endif
 
 ////////////////////
 // Dynamic Arrays //
