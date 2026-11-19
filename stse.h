@@ -216,6 +216,8 @@ typedef complex double c64;
 
 #define stse_da_pop(da) ((da)->items[(STSE_ASSERT((da)->len > 0), --(da)->len)])
 
+#define stse_da_last(da) ((da)->items[(STSE_ASSERT((da)->len > 0), (da)->len-1)])
+
 #define stse_da_insert(da, index, item)                                     \
 	do {                                                                    \
 		size_t __stse_da_insert_i = (index);                                \
@@ -301,6 +303,8 @@ typedef complex double c64;
 
 #define stse_da_tmp_pop(da) ((da)->items[(STSE_ASSERT((da)->len > 0), --(da)->len)])
 
+#define stse_da_tmp_last(da) ((da)->items[(STSE_ASSERT((da)->len > 0), (da)->len-1)])
+
 #define stse_da_tmp_insert(da, index, item)                                      \
 	do {                                                                         \
 		size_t __stse_da_tmp_insert_i = (index);                                 \
@@ -368,6 +372,8 @@ typedef complex double c64;
 	} while (0)
 
 #define stse_da_pool_pop(da) stse_da_pop(da)
+
+#define stse_da_pool_last(da) ((da)->items[(STSE_ASSERT((da)->len > 0), (da)->len-1)])
 
 #define stse_da_pool_insert(da, index, item, pool)                                         \
 	do {                                                                                   \
@@ -1250,6 +1256,7 @@ union ldshape {
 #define da_reserve stse_da_reserve
 #define da_push stse_da_push
 #define da_pop stse_da_pop
+#define da_last stse_da_last
 #define da_insert stse_da_insert
 #define da_remove stse_da_remove
 #define da_remove_unordered stse_da_remove_unordered
@@ -1259,6 +1266,7 @@ union ldshape {
 #define da_tmp_reserve stse_da_tmp_reserve
 #define da_tmp_push stse_da_tmp_push
 #define da_tmp_pop stse_da_tmp_pop
+#define da_tmp_last stse_da_tmp_last
 #define da_tmp_insert stse_da_tmp_insert
 #define da_tmp_remove stse_da_tmp_remove
 #define da_tmp_remove_unordered stse_da_tmp_remove_unordered
@@ -1267,6 +1275,7 @@ union ldshape {
 #define da_pool_reserve stse_da_pool_reserve
 #define da_pool_push stse_da_pool_push
 #define da_pool_pop stse_da_pool_pop
+#define da_pool_last stse_da_pool_last
 #define da_pool_insert stse_da_pool_insert
 #define da_pool_remove stse_da_pool_remove
 #define da_pool_remove_unordered stse_da_pool_remove_unordered
